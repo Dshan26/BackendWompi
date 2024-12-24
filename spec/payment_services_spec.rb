@@ -1,5 +1,6 @@
 require 'spec_helper'
 require_relative '../lib/services/payment_service'
+require_relative '../app'
 
 RSpec.describe PaymentService do
   describe '.process_payment' do
@@ -100,6 +101,69 @@ RSpec.describe PaymentService do
       result = PaymentService.generate_signature(reference, amount_in_cents, currency, integrity_secret, expiration_time)
 
       expect(result).to eq(expected_signature)
+    end
+  end
+end
+
+RSpec.describe 'Payment Service API' do
+  include Rack::Test::Methods
+
+  def app
+    Sinatra::Application
+  end
+
+  describe 'POST /transactions/pay' do
+    let(:valid_payload) do
+      {
+        transaction_id: 1,
+        expiration_time: '2024-12-31T23:59:59Z',
+        customer_data: {
+          name: 'John Doe',
+          email: 'john.doe@example.com'
+        },
+        shipping_address: '123 Main Street, Springfield',
+        amount_in_cents: 10000,
+        currency: 'USD',
+        payment_method: 'credit_card',
+        redirect_url: 'http://localhost:3000/thank_you'
+      }.to_json
+    end
+
+    let(:invalid_payload) do
+      {
+        transaction_id: 1,
+        expiration_time: '2024-12-31T23:59:59Z',
+        # Falta customer_data, shipping_address, etc.
+      }.to_json
+    end
+
+    it 'procesa un pago exitosamente con un payload válido' do
+      header 'Content-Type', 'application/json'
+      post '/transactions/pay', valid_payload
+
+      expect(last_response.status).to eq(200)
+      response_body = JSON.parse(last_response.body)
+      expect(response_body['message']).to include('Pago procesado exitosamente')
+    end
+
+    it 'retorna un error 400 si faltan campos obligatorios' do
+      header 'Content-Type', 'application/json'
+      post '/transactions/pay', invalid_payload
+
+      expect(last_response.status).to eq(400)
+      response_body = JSON.parse(last_response.body)
+      expect(response_body['message']).to include('Faltan los siguientes campos')
+    end
+
+    it 'retorna un error 500 si ocurre un problema interno' do
+      allow(TransactionService).to receive(:process_payment).and_return({ error: 'Error interno del servidor' })
+
+      header 'Content-Type', 'application/json'
+      post '/transactions/pay', valid_payload
+
+      expect(last_response.status).to eq(500)
+      response_body = JSON.parse(last_response.body)
+      expect(response_body['message']).to eq('Error interno del servidor')
     end
   end
 end

@@ -1,5 +1,6 @@
 require 'spec_helper'
 require_relative '../lib/services/transaction_service'
+require_relative '../app'
 
 RSpec.describe TransactionService do
   describe '.get_transaction_status' do
@@ -112,6 +113,50 @@ RSpec.describe TransactionService do
       result = TransactionService.register_delivery(payload)
 
       expect(result[:error]).to eq('Transacción no encontrada')
+    end
+  end
+end
+
+RSpec.describe 'Transaction Service API' do
+  include Rack::Test::Methods
+
+  def app
+    Sinatra::Application
+  end
+
+  describe 'POST /transactions' do
+    it 'crea una transacción' do
+      payload = {
+        amount: 1000,
+        currency: 'USD',
+        customer_id: 1,
+        items: [{ product_id: 1, quantity: 2 }]
+      }.to_json
+
+      header 'Content-Type', 'application/json'
+      post '/transactions', payload
+
+      expect(last_response.status).to eq(200)
+      expect(JSON.parse(last_response.body)['message']).to include('Transacción creada exitosamente')
+    end
+  end
+
+  describe 'GET /transactions/:id' do
+    it 'obtiene detalles de una transacción existente' do
+      transaction_id = 1 # Asegúrate de que esta ID exista en la base de datos para pruebas
+
+      get "/transactions/#{transaction_id}"
+
+      expect(last_response.status).to eq(200)
+      response_body = JSON.parse(last_response.body)
+      expect(response_body['transaction_id']).to eq(transaction_id)
+    end
+
+    it 'retorna un error 404 si la transacción no existe' do
+      get '/transactions/9999'
+
+      expect(last_response.status).to eq(404)
+      expect(JSON.parse(last_response.body)['message']).to eq('Transacción no encontrada')
     end
   end
 end

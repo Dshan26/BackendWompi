@@ -61,9 +61,6 @@ put '/products/:id/reduce-stock' do
 end
 
 
-
-
-
 # Endpoint para crear una transacción
 post '/transactions' do
   request_payload = JSON.parse(request.body.read)
